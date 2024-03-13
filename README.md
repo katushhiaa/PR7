@@ -64,3 +64,91 @@ public class MainActivity extends Activity {
         insertData();
     }
 ```
+
+3. В цьому ж методі зробіть запит до таблиці, який одержує всі рядки і за допомогою наявного курсора запишіть дані в масив рядків.
+
+```java
+    private String[] retrieveData() {
+        Cursor cursor = myDatabase.rawQuery("SELECT * FROM " + DATABASE_TABLE, null);
+        String[] data = new String[cursor.getCount()];
+        int index = 0;
+        if (cursor.moveToFirst()) {
+            do {
+                @SuppressLint("Range") String rowData = cursor.getString(cursor.getColumnIndex("column_one"));
+                data[index++] = rowData;
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+        return data;
+    }
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        createDatabase();
+        List<String> retrievedData = Arrays.asList(retrieveData());
+    }
+```
+
+4. За допомогою додаткової розмітки і адаптера ArrayAdapter
+відобразіть отримані з СУБД дані на екрані активності.
+
+```xml
+    <ListView
+        android:id="@+id/listView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+```
+
+```java
+ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, retrievedData);
+        ListView listView = findViewById(R.id.listView);
+        listView.setAdapter(adapter);
+```
+
+5. Добавте обробник кліку на елемент списку, щоб при кліці
+запитували з БД індекс елементу з цим рядком і відобразіть його за допомогою Toast.
+
+```java
+listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                Cursor cursor = myDatabase.rawQuery("SELECT _id FROM " + DATABASE_TABLE + " WHERE column_one = ?", new String[]{retrievedData.get(position)});
+                if (cursor.moveToFirst()) {
+                    @SuppressLint("Range") int dataIndex = cursor.getInt(cursor.getColumnIndex("_id"));
+                    int duration = Toast.LENGTH_LONG;
+                    Toast.makeText(getApplicationContext(), "Index: " + dataIndex, duration).show();
+                }
+                cursor.close();
+            }
+        });
+```
+
+6.Добавте контекстне меню до елементів списку, що містить пункт «видалити» і реалізуйте видалення. Після видалення повинні проводиться дії з п.п. 3 і 4 для зміни складу відображуваних даних.
+
+```java
+    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+        super.onCreateContextMenu(menu, v, menuInfo);
+        if (v.getId() == R.id.listView) {
+            AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) menuInfo;
+            menu.setHeaderTitle("Select Action");
+            menu.add(Menu.NONE, 0, 0, "Delete");
+        }
+    }
+
+    @Override
+    public boolean onContextItemSelected(MenuItem item) {
+        AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
+        if (item.getItemId() == 0) {
+            String selectedItem = ((ArrayAdapter<String>) ((ListView) findViewById(R.id.listView)).getAdapter()).getItem(info.position);
+            myDatabase.delete(DATABASE_TABLE, "column_one=?", new String[]{selectedItem});
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, Arrays.asList(retrieveData()));
+            ListView listView = findViewById(R.id.listView);
+            listView.setAdapter(adapter);
+            return true;
+        }
+        return super.onContextItemSelected(item);
+    }
+```
